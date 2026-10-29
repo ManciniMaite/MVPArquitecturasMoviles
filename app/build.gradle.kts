@@ -1,3 +1,5 @@
+import java.util.Properties
+
 plugins {
     alias(libs.plugins.android.application)
     id("com.google.gms.google-services") version "4.5.0"
@@ -17,6 +19,16 @@ android {
         versionName = "1.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+
+        val props = Properties()
+        val archivo = rootProject.file("local.properties")
+        if (archivo.exists()) props.load(archivo.inputStream())
+        buildConfigField("String", "EXCHANGE_API_KEY", "\"${props.getProperty("EXCHANGE_API_KEY", "")}\"")
+        buildConfigField("String", "MINDEE_API_KEY", "\"${props.getProperty("MINDEE_API_KEY", "")}\"")
+    }
+
+    buildFeatures {
+        buildConfig = true
     }
 
     buildTypes {
@@ -45,4 +57,7 @@ dependencies {
     implementation("com.google.firebase:firebase-analytics")
     implementation("com.google.firebase:firebase-auth")
     implementation("com.google.firebase:firebase-firestore")
+    implementation("com.squareup.retrofit2:retrofit:2.11.0")
+    implementation("com.squareup.retrofit2:converter-gson:2.11.0")
+    implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.8.7")
 }

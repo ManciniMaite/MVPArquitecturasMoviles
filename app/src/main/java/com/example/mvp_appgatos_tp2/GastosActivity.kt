@@ -12,8 +12,10 @@ import androidx.activity.enableEdgeToEdge
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
+import androidx.lifecycle.lifecycleScope
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
+import kotlinx.coroutines.launch
 
 class GastosActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -25,6 +27,10 @@ class GastosActivity : AppCompatActivity() {
         val spinnerCategoria = findViewById<Spinner>(R.id.spinnerCategoria)
         val adapter = ArrayAdapter(this, android.R.layout.simple_spinner_dropdown_item, categorias)
         spinnerCategoria.adapter = adapter
+
+        val monedas = arrayOf("ARS", "USD", "EUR")
+        val spinnerMoneda = findViewById<Spinner>(R.id.spinnerMoneda)
+        spinnerMoneda.adapter = ArrayAdapter(this, android.R.layout.simple_spinner_dropdown_item, monedas)
 
         ViewCompat.setOnApplyWindowInsetsListener(findViewById(R.id.main)) { v, insets ->
             val systemBars = insets.getInsets(WindowInsetsCompat.Type.systemBars())
@@ -41,9 +47,8 @@ class GastosActivity : AppCompatActivity() {
         val btnAgregarGasto = findViewById<Button>(R.id.btnAgregarGasto)
 
         btnAgregarGasto.setOnClickListener {
-            val montoTexto = editTextMonto.text.toString()
-            val monto = montoTexto.toDoubleOrNull()
             val descripcion = editTextDescripcion.text.toString().trim()
+            val monto = editTextMonto.text.toString().toDoubleOrNull()
 
             if (monto == null) {
                 Toast.makeText(this, "Ingresá un monto válido", Toast.LENGTH_SHORT).show()
@@ -51,25 +56,50 @@ class GastosActivity : AppCompatActivity() {
             }
 
             val categoria = spinnerCategoria.selectedItem.toString()
+            val moneda = spinnerMoneda.selectedItem.toString()
 
-            val gasto = hashMapOf(
-                "descripcion" to descripcion,
-                "monto" to monto,
-                "categoria" to categoria,
-                "fecha" to System.currentTimeMillis(),
-                "uid" to uid
-            )
+            lifecycleScope.launch {
+                var montoEnPesos = monto
 
-            db.collection("gastos")
-                .add(gasto)
-                .addOnSuccessListener {
-                    Toast.makeText(this, "Gasto agregado", Toast.LENGTH_SHORT).show()
-                    editTextDescripcion.text.clear()
-                    editTextMonto.text.clear()
+                if (moneda != "ARS") {
+                    try {
+                        val respuesta = ApiClient.exchangeRate.convertCurrency(
+                            com.example.mvp_appgatos_tp2.BuildConfig.EXCHANGE_API_KEY, moneda, "ARS", monto
+                        )
+                        val convertido = respuesta.body()?.conversion_result
+
+                        if (!respuesta.isSuccessful || convertido == null) {
+                            Toast.makeText(this@GastosActivity, "No se pudo convertir la moneda", Toast.LENGTH_SHORT).show()
+                            return@launch
+                        }
+                        montoEnPesos = convertido
+                    } catch (e: Exception) {
+                        Toast.makeText(this@GastosActivity, "Error de conexión: ${e.message}", Toast.LENGTH_SHORT).show()
+                        return@launch
+                    }
                 }
-                .addOnFailureListener { error ->
-                    Toast.makeText(this, "Error: ${error.message}", Toast.LENGTH_SHORT).show()
-                }
+
+                val gasto = hashMapOf(
+                    "descripcion" to descripcion,
+                    "monto" to montoEnPesos,
+                    "montoOriginal" to monto,
+                    "moneda" to moneda,
+                    "categoria" to categoria,
+                    "fecha" to System.currentTimeMillis(),
+                    "uid" to uid
+                )
+
+                db.collection("gastos")
+                    .add(gasto)
+                    .addOnSuccessListener {
+                        Toast.makeText(this@GastosActivity, "Gasto agregado", Toast.LENGTH_SHORT).show()
+                        editTextDescripcion.text.clear()
+                        editTextMonto.text.clear()
+                    }
+                    .addOnFailureListener { error ->
+                        Toast.makeText(this@GastosActivity, "Error: ${error.message}", Toast.LENGTH_SHORT).show()
+                    }
+            }
         }
 
         val listViewGastos = findViewById<ListView>(R.id.listViewGastos)
