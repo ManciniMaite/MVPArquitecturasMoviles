@@ -1,6 +1,8 @@
 package com.example.mvp_appgatos_tp2
 
+import android.content.Intent
 import android.os.Bundle
+import android.view.View
 import android.widget.ArrayAdapter
 import android.widget.Button
 import android.widget.EditText
@@ -13,6 +15,11 @@ import androidx.appcompat.app.AppCompatActivity
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.lifecycle.lifecycleScope
+import com.google.android.gms.ads.AdListener
+import com.google.android.gms.ads.AdRequest
+import com.google.android.gms.ads.AdView
+import com.google.android.gms.ads.LoadAdError
+import com.google.android.gms.ads.MobileAds
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
 import kotlinx.coroutines.launch
@@ -132,5 +139,25 @@ class GastosActivity : AppCompatActivity() {
                 val adapterLista = ArrayAdapter(this, android.R.layout.simple_list_item_1, listaTextos)
                 listViewGastos.adapter = adapterLista
             }
+
+        MobileAds.initialize(this) {}
+        val adView = findViewById<AdView>(R.id.adView)
+
+        if (uid != null) {
+            db.collection("usuarios").document(uid)
+                .addSnapshotListener { doc, _ ->
+                    val premium = doc?.getBoolean("premium") ?: false
+                    if (premium) {
+                        adView.visibility = View.GONE
+                    } else {
+                        adView.visibility = View.VISIBLE
+                        adView.loadAd(AdRequest.Builder().build())
+                    }
+                }
+        }
+
+        findViewById<Button>(R.id.btnPremium).setOnClickListener {
+            startActivity(Intent(this, PremiumActivity::class.java))
+        }
     }
 }
